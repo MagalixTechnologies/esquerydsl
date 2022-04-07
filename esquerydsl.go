@@ -57,16 +57,18 @@ func (qt QueryType) String() (string, error) {
 // construct our querydsl JSON bodies. This struct marshals into
 // a spec complaint ES querydsl JSON string
 type QueryDoc struct {
-	Index       string
-	Size        int
-	From        int
-	Sort        []map[string]string
-	SearchAfter []string
-	And         []QueryItem
-	Not         []QueryItem
-	Or          []QueryItem
-	Filter      []QueryItem
-	PageSize    int
+	Index              string
+	Size               int
+	From               int
+	Sort               []map[string]string
+	SearchAfter        []string
+	And                []QueryItem
+	Not                []QueryItem
+	Or                 []QueryItem
+	Filter             []QueryItem
+	PageSize           int
+	TrackTotalHits     bool
+	MinimumShouldMatch int
 }
 
 // QueryItem is used to construct the specific query type json bodies
@@ -110,11 +112,12 @@ func WrapQueryItems(itemType string, items ...QueryItem) QueryItem {
 //     }
 // }
 type queryReqDoc struct {
-	Query       queryWrap           `json:"query,omitempty"`
-	Size        int                 `json:"size,omitempty"`
-	From        int                 `json:"from,omitempty"`
-	Sort        []map[string]string `json:"sort,omitempty"`
-	SearchAfter []string            `json:"search_after,omitempty"`
+	Query          queryWrap           `json:"query,omitempty"`
+	Size           int                 `json:"size,omitempty"`
+	From           int                 `json:"from,omitempty"`
+	Sort           []map[string]string `json:"sort,omitempty"`
+	SearchAfter    []string            `json:"search_after,omitempty"`
+	TrackTotalHits bool                `json:"track_total_hits,omitempty"`
 }
 
 type queryWrap struct {
@@ -122,10 +125,11 @@ type queryWrap struct {
 }
 
 type boolWrap struct {
-	AndList    []leafQuery `json:"must,omitempty"`
-	NotList    []leafQuery `json:"must_not,omitempty"`
-	OrList     []leafQuery `json:"should,omitempty"`
-	FilterList []leafQuery `json:"filter,omitempty"`
+	AndList            []leafQuery `json:"must,omitempty"`
+	NotList            []leafQuery `json:"must_not,omitempty"`
+	OrList             []leafQuery `json:"should,omitempty"`
+	FilterList         []leafQuery `json:"filter,omitempty"`
+	MinimumShouldMatch int         `json:"minimum_should_match,omitempty"`
 }
 
 type leafQuery struct {
@@ -164,7 +168,7 @@ func (q leafQuery) handleMarshalQueryString(queryType string) ([]byte, error) {
 }
 
 func getWrappedQuery(query QueryDoc) queryWrap {
-	boolDoc := boolWrap{}
+	boolDoc := boolWrap{MinimumShouldMatch: query.MinimumShouldMatch}
 	if len(query.And) > 0 {
 		boolDoc.AndList = updateList(query.And)
 	}
@@ -210,11 +214,12 @@ func updateList(queryItems []QueryItem) []leafQuery {
 // valid and spec compliant JSON representation
 func (query QueryDoc) MarshalJSON() ([]byte, error) {
 	queryReq := queryReqDoc{
-		Query:       getWrappedQuery(query),
-		Size:        query.Size,
-		From:        query.From,
-		Sort:        query.Sort,
-		SearchAfter: query.SearchAfter,
+		Query:          getWrappedQuery(query),
+		Size:           query.Size,
+		From:           query.From,
+		Sort:           query.Sort,
+		SearchAfter:    query.SearchAfter,
+		TrackTotalHits: query.TrackTotalHits,
 	}
 
 	requestBody, err := json.Marshal(queryReq)

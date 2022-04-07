@@ -132,3 +132,61 @@ func TestFilterQuery(t *testing.T) {
 		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
 	}
 }
+
+func TestTrackTotalHits(t *testing.T) {
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		And: []QueryItem{
+			{
+				Field: "some_index_id",
+				Value: "some-long-key-id-value",
+				Type:  Match,
+			},
+		}, TrackTotalHits: true,
+	})
+
+	expected := `{"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"sort":[{"id":"asc"}],"track_total_hits":true}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}
+
+func TestOrQuery(t *testing.T) {
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		Or: []QueryItem{
+			{
+				Field: "some_index_id",
+				Value: "some-long-key-id-value",
+				Type:  Terms,
+			},
+		},
+	})
+
+	expected := `{"query":{"bool":{"should":[{"terms":{"some_index_id":"some-long-key-id-value"}}]}},"sort":[{"id":"asc"}]}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}
+
+func TestMinimumShouldMatch(t *testing.T) {
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		Or: []QueryItem{
+			{
+				Field: "some_index_id",
+				Value: "some-long-key-id-value",
+				Type:  Terms,
+			},
+		},
+		MinimumShouldMatch: 1,
+	})
+
+	expected := `{"query":{"bool":{"should":[{"terms":{"some_index_id":"some-long-key-id-value"}}],"minimum_should_match":1}},"sort":[{"id":"asc"}]}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}

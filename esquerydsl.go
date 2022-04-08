@@ -69,6 +69,15 @@ type QueryDoc struct {
 	PageSize           int
 	TrackTotalHits     bool
 	MinimumShouldMatch int
+	Aggregations       []Aggregation
+}
+
+type Aggregation struct {
+	Type  QueryType
+	Name  string
+	Field string
+	Size  *int
+	Order *map[string]string
 }
 
 // QueryItem is used to construct the specific query type json bodies
@@ -112,12 +121,13 @@ func WrapQueryItems(itemType string, items ...QueryItem) QueryItem {
 //     }
 // }
 type queryReqDoc struct {
-	Query          queryWrap           `json:"query,omitempty"`
-	Size           int                 `json:"size,omitempty"`
-	From           int                 `json:"from,omitempty"`
-	Sort           []map[string]string `json:"sort,omitempty"`
-	SearchAfter    []string            `json:"search_after,omitempty"`
-	TrackTotalHits bool                `json:"track_total_hits,omitempty"`
+	Aggregations   map[string]interface{} `json:"aggregations,omitempty"`
+	Query          queryWrap              `json:"query,omitempty"`
+	Size           int                    `json:"size"`
+	From           int                    `json:"from,omitempty"`
+	Sort           []map[string]string    `json:"sort,omitempty"`
+	SearchAfter    []string               `json:"search_after,omitempty"`
+	TrackTotalHits bool                   `json:"track_total_hits,omitempty"`
 }
 
 type queryWrap struct {
@@ -167,6 +177,38 @@ func (q leafQuery) handleMarshalQueryString(queryType string) ([]byte, error) {
 	})
 }
 
+func constructAggregations(aggs []Aggregation) map[string]interface{} {
+	if len(aggs) == 0 {
+		return nil
+	}
+
+	agg := aggs[0]
+	aggType := map[string]interface{}{
+		"field": agg.Field,
+	}
+	if agg.Size != nil {
+		aggType["size"] = *agg.Size
+	}
+	if agg.Order != nil {
+		aggType["order"] = *agg.Order
+	}
+
+	aggTypeKey, _ := agg.Type.String()
+	aggregationMap := map[string]interface{}{
+		agg.Name: map[string]interface{}{
+			aggTypeKey: aggType,
+		},
+	}
+
+	if len(aggs) > 1 {
+		aggTempMap := aggregationMap[agg.Name].(map[string]interface{})
+		aggTempMap["aggregations"] = constructAggregations(aggs[1:])
+	}
+
+	return aggregationMap
+
+}
+
 func getWrappedQuery(query QueryDoc) queryWrap {
 	boolDoc := boolWrap{MinimumShouldMatch: query.MinimumShouldMatch}
 	if len(query.And) > 0 {
@@ -214,6 +256,7 @@ func updateList(queryItems []QueryItem) []leafQuery {
 // valid and spec compliant JSON representation
 func (query QueryDoc) MarshalJSON() ([]byte, error) {
 	queryReq := queryReqDoc{
+		Aggregations:   constructAggregations(query.Aggregations),
 		Query:          getWrappedQuery(query),
 		Size:           query.Size,
 		From:           query.From,

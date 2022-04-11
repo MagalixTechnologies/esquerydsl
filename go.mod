@@ -1,3 +1,3 @@
-module github.com/mottaquikarim/esquerydsl
+module github.com/MagalixTechnologies/esquerydsl
 
 go 1.15

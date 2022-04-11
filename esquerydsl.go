@@ -18,6 +18,7 @@ const (
 	Match QueryType = iota
 	Term
 	Terms
+	Max
 	Wildcard
 	Range
 	Exists
@@ -40,6 +41,7 @@ func (qt QueryType) String() (string, error) {
 		"match",
 		"term",
 		"terms",
+		"max",
 		"wildcard",
 		"range",
 		"exists",

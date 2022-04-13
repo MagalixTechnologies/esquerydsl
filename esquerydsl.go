@@ -18,6 +18,7 @@ const (
 	Match QueryType = iota
 	Term
 	Terms
+	Cardinality
 	Max
 	Wildcard
 	Range
@@ -41,6 +42,7 @@ func (qt QueryType) String() (string, error) {
 		"match",
 		"term",
 		"terms",
+		"cardinality",
 		"max",
 		"wildcard",
 		"range",
@@ -59,19 +61,20 @@ func (qt QueryType) String() (string, error) {
 // construct our querydsl JSON bodies. This struct marshals into
 // a spec complaint ES querydsl JSON string
 type QueryDoc struct {
-	Index              string
-	Size               int
-	From               int
-	Sort               []map[string]string
-	SearchAfter        []string
-	And                []QueryItem
-	Not                []QueryItem
-	Or                 []QueryItem
-	Filter             []QueryItem
-	PageSize           int
-	TrackTotalHits     bool
-	MinimumShouldMatch int
-	Aggregations       []Aggregation
+	Index                   string
+	Size                    int
+	From                    int
+	Sort                    []map[string]string
+	SearchAfter             []string
+	And                     []QueryItem
+	Not                     []QueryItem
+	Or                      []QueryItem
+	Filter                  []QueryItem
+	PageSize                int
+	TrackTotalHits          bool
+	MinimumShouldMatch      int
+	TermsAggregations       []Aggregation
+	CardinalityAggregations []Aggregation
 }
 
 type Aggregation struct {
@@ -179,7 +182,7 @@ func (q leafQuery) handleMarshalQueryString(queryType string) ([]byte, error) {
 	})
 }
 
-func constructAggregations(aggs []Aggregation) map[string]interface{} {
+func constructTermsAggregations(aggs []Aggregation) map[string]interface{} {
 	if len(aggs) == 0 {
 		return nil
 	}
@@ -204,11 +207,28 @@ func constructAggregations(aggs []Aggregation) map[string]interface{} {
 
 	if len(aggs) > 1 {
 		aggTempMap := aggregationMap[agg.Name].(map[string]interface{})
-		aggTempMap["aggregations"] = constructAggregations(aggs[1:])
+		aggTempMap["aggregations"] = constructTermsAggregations(aggs[1:])
 	}
 
 	return aggregationMap
 
+}
+
+func constructAggregations(query QueryDoc) map[string]interface{} {
+	aggregationMap := constructTermsAggregations(query.TermsAggregations)
+	if aggregationMap != nil {
+		for _, cardinalityAggregation := range query.CardinalityAggregations {
+			aggType, _ := cardinalityAggregation.Type.String()
+			fieldAggMap := map[string]string{
+				"field": cardinalityAggregation.Field,
+			}
+			aggregationMap[cardinalityAggregation.Name] = map[string]interface{}{
+				aggType: fieldAggMap,
+			}
+		}
+
+	}
+	return aggregationMap
 }
 
 func getWrappedQuery(query QueryDoc) queryWrap {
@@ -257,8 +277,9 @@ func updateList(queryItems []QueryItem) []leafQuery {
 // MarshalJSON will convert QueryDoc struct into
 // valid and spec compliant JSON representation
 func (query QueryDoc) MarshalJSON() ([]byte, error) {
+
 	queryReq := queryReqDoc{
-		Aggregations:   constructAggregations(query.Aggregations),
+		Aggregations:   constructAggregations(query),
 		Query:          getWrappedQuery(query),
 		Size:           query.Size,
 		From:           query.From,

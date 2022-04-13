@@ -194,7 +194,7 @@ func TestMinimumShouldMatch(t *testing.T) {
 	}
 }
 
-func TestAggregations(t *testing.T) {
+func TestTermsAggregations(t *testing.T) {
 	order := map[string]string{"_count": "desc"}
 	size := 100
 	body, _ := json.Marshal(QueryDoc{
@@ -208,7 +208,7 @@ func TestAggregations(t *testing.T) {
 				Type:  Match,
 			},
 		},
-		Aggregations: []Aggregation{
+		TermsAggregations: []Aggregation{
 			{
 				Type:  Terms,
 				Size:  &size,
@@ -225,6 +225,49 @@ func TestAggregations(t *testing.T) {
 	})
 
 	expected := `{"aggregations":{"first_field_agg":{"aggregations":{"second_field_agg":{"terms":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}}},"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"size":0,"sort":[{"id":"asc"}]}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}
+
+func TestCardinalityAggregations(t *testing.T) {
+	order := map[string]string{"_count": "desc"}
+	size := 100
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		Size:  0,
+		And: []QueryItem{
+			{
+				Field: "some_index_id",
+				Value: "some-long-key-id-value",
+				Type:  Match,
+			},
+		},
+		TermsAggregations: []Aggregation{
+			{
+				Type:  Terms,
+				Size:  &size,
+				Order: &order,
+				Name:  "first_field_agg",
+				Field: "first_field.keyword",
+			},
+			{
+				Type:  Terms,
+				Name:  "second_field_agg",
+				Field: "second_field.keyword",
+			},
+		},
+		CardinalityAggregations: []Aggregation{
+			{
+				Type:  Cardinality,
+				Name:  "uniques",
+				Field: "first_field",
+			},
+		},
+	})
+
+	expected := `{"aggregations":{"first_field_agg":{"aggregations":{"second_field_agg":{"terms":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}},"uniques":{"cardinality":{"field":"first_field"}}},"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"size":0,"sort":[{"id":"asc"}]}`
 	if string(body) != expected {
 		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
 	}

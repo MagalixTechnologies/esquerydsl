@@ -77,6 +77,7 @@ type QueryDoc struct {
 	MinimumShouldMatch      int
 	TermsAggregations       []Aggregation
 	CardinalityAggregations []Aggregation
+	Source                  []string
 }
 
 type Aggregation struct {
@@ -135,6 +136,7 @@ type queryReqDoc struct {
 	Sort           []map[string]string    `json:"sort,omitempty"`
 	SearchAfter    []string               `json:"search_after,omitempty"`
 	TrackTotalHits bool                   `json:"track_total_hits,omitempty"`
+	Source         []string               `json:"_source,omitempty"`
 }
 
 type queryWrap struct {
@@ -288,6 +290,7 @@ func (query QueryDoc) MarshalJSON() ([]byte, error) {
 		Sort:           query.Sort,
 		SearchAfter:    query.SearchAfter,
 		TrackTotalHits: query.TrackTotalHits,
+		Source:         query.Source,
 	}
 
 	requestBody, err := json.Marshal(queryReq)

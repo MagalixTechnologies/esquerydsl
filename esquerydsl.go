@@ -25,6 +25,7 @@ const (
 	Exists
 	QueryString
 	Nested
+	RegexP
 )
 
 // QueryTypeErr is a custom err returned if we are trying to stringify
@@ -49,6 +50,7 @@ func (qt QueryType) String() (string, error) {
 		"exists",
 		"query_string",
 		"nested",
+		"regexp",
 	}
 	if int(qt) > len(convs) {
 		return "", &QueryTypeErr{typeVal: qt}

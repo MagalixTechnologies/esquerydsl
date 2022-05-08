@@ -159,22 +159,30 @@ type leafQuery struct {
 }
 
 func (q leafQuery) handleMarshalType(queryType string) ([]byte, error) {
+	result := map[string]interface{}{
+		(queryType): map[string]interface{}{
+			(q.Name): q.Value,
+		},
+	}
+
 	// lowercase wildcard queries
 	if q.Type == Wildcard {
 		if s, ok := q.Value.(string); ok {
-			q.Value = strings.ToLower(s)
+			result = map[string]interface{}{
+				(queryType): map[string]interface{}{
+					(q.Name): map[string]interface{}{
+						"value":            strings.ToLower(s),
+						"case_insensitive": true,
+					},
+				},
+			}
 		}
 	}
 
 	if q.Type == QueryString {
 		return q.handleMarshalQueryString(queryType)
 	}
-
-	return json.Marshal(map[string]interface{}{
-		(queryType): map[string]interface{}{
-			(q.Name): q.Value,
-		},
-	})
+	return json.Marshal(result)
 }
 
 func (q leafQuery) handleMarshalQueryString(queryType string) ([]byte, error) {

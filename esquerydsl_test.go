@@ -215,16 +215,18 @@ func TestTermsAggregations(t *testing.T) {
 				Order: &order,
 				Name:  "first_field_agg",
 				Field: "first_field.keyword",
-			},
-			{
-				Type:  Terms,
-				Name:  "second_field_agg",
-				Field: "second_field.keyword",
+				NestedAggregations: []Aggregation{
+					{
+						Type:  Terms,
+						Name:  "second_field_agg",
+						Field: "second_field.keyword",
+					},
+				},
 			},
 		},
 	})
 
-	expected := `{"aggregations":{"first_field_agg":{"aggregations":{"second_field_agg":{"terms":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}}},"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"size":0,"sort":[{"id":"asc"}]}`
+	expected := `{"aggs":{"first_field_agg":{"aggs":{"second_field_agg":{"terms":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}}},"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"size":0,"sort":[{"id":"asc"}]}`
 	if string(body) != expected {
 		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
 	}
@@ -251,11 +253,13 @@ func TestCardinalityAggregations(t *testing.T) {
 				Order: &order,
 				Name:  "first_field_agg",
 				Field: "first_field.keyword",
-			},
-			{
-				Type:  Terms,
-				Name:  "second_field_agg",
-				Field: "second_field.keyword",
+				NestedAggregations: []Aggregation{
+					{
+						Type:  Terms,
+						Name:  "second_field_agg",
+						Field: "second_field.keyword",
+					},
+				},
 			},
 		},
 		CardinalityAggregations: []Aggregation{
@@ -267,7 +271,112 @@ func TestCardinalityAggregations(t *testing.T) {
 		},
 	})
 
-	expected := `{"aggregations":{"first_field_agg":{"aggregations":{"second_field_agg":{"terms":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}},"uniques":{"cardinality":{"field":"first_field"}}},"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"size":0,"sort":[{"id":"asc"}]}`
+	expected := `{"aggs":{"first_field_agg":{"aggs":{"second_field_agg":{"terms":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}},"uniques":{"cardinality":{"field":"first_field"}}},"query":{"bool":{"must":[{"match":{"some_index_id":"some-long-key-id-value"}}]}},"size":0,"sort":[{"id":"asc"}]}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}
+
+func TestTermsAggregationsOneLevel(t *testing.T) {
+	order := map[string]string{"_count": "desc"}
+	size := 100
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		Size:  0,
+		TermsAggregations: []Aggregation{
+			{
+				Type:  Terms,
+				Size:  &size,
+				Order: &order,
+				Name:  "first_field_agg",
+				Field: "first_field.keyword",
+			},
+			{
+				Type:  Max,
+				Name:  "second_field_agg",
+				Field: "second_field.keyword",
+			},
+		},
+	})
+
+	expected := `{"aggs":{"first_field_agg":{"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}},"second_field_agg":{"max":{"field":"second_field.keyword"}}},"query":{"bool":{}},"size":0,"sort":[{"id":"asc"}]}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}
+
+func TestTermsAggregationsNestedOneObject(t *testing.T) {
+	order := map[string]string{"_count": "desc"}
+	size := 100
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		Size:  0,
+		TermsAggregations: []Aggregation{
+			{
+				Type:  Terms,
+				Size:  &size,
+				Order: &order,
+				Name:  "first_field_agg",
+				Field: "first_field.keyword",
+				NestedAggregations: []Aggregation{
+					{
+						Type:  Max,
+						Name:  "second_field_agg",
+						Field: "second_field.keyword",
+					},
+				},
+			},
+		},
+	})
+
+	expected := `{"aggs":{"first_field_agg":{"aggs":{"second_field_agg":{"max":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}}},"query":{"bool":{}},"size":0,"sort":[{"id":"asc"}]}`
+	if string(body) != expected {
+		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
+	}
+}
+
+func TestTermsAggregationsNestedMultipleObjects(t *testing.T) {
+	order := map[string]string{"_count": "desc"}
+	size := 100
+	body, _ := json.Marshal(QueryDoc{
+		Index: "some_index",
+		Sort:  []map[string]string{{"id": "asc"}},
+		Size:  0,
+		TermsAggregations: []Aggregation{
+			{
+				Type:  Terms,
+				Size:  &size,
+				Order: &order,
+				Name:  "First",
+				Field: "first_field.keyword",
+				NestedAggregations: []Aggregation{
+					{
+						Type:  Max,
+						Name:  "Second",
+						Field: "second_field.keyword",
+					},
+				},
+			},
+			{
+				Type:  Terms,
+				Size:  &size,
+				Order: &order,
+				Name:  "Third",
+				Field: "third_field.keyword",
+				NestedAggregations: []Aggregation{
+					{
+						Type:  Terms,
+						Name:  "Forth",
+						Field: "forth_field.keyword",
+					},
+				},
+			},
+		},
+	})
+
+	expected := `{"aggs":{"First":{"aggs":{"Second":{"max":{"field":"second_field.keyword"}}},"terms":{"field":"first_field.keyword","order":{"_count":"desc"},"size":100}},"Third":{"aggs":{"Forth":{"terms":{"field":"forth_field.keyword"}}},"terms":{"field":"third_field.keyword","order":{"_count":"desc"},"size":100}}},"query":{"bool":{}},"size":0,"sort":[{"id":"asc"}]}`
 	if string(body) != expected {
 		t.Errorf("\nWant: %q\nHave: %q", expected, string(body))
 	}

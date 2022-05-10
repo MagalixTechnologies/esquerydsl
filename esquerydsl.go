@@ -81,11 +81,12 @@ type QueryDoc struct {
 }
 
 type Aggregation struct {
-	Type  QueryType
-	Name  string
-	Field string
-	Size  *int
-	Order *map[string]string
+	Type               QueryType
+	Name               string
+	Field              string
+	Size               *int
+	Order              *map[string]string
+	NestedAggregations []Aggregation
 }
 
 // QueryItem is used to construct the specific query type json bodies
@@ -129,7 +130,7 @@ func WrapQueryItems(itemType string, items ...QueryItem) QueryItem {
 //     }
 // }
 type queryReqDoc struct {
-	Aggregations   map[string]interface{} `json:"aggregations,omitempty"`
+	Aggregations   map[string]interface{} `json:"aggs,omitempty"`
 	Query          queryWrap              `json:"query,omitempty"`
 	Size           int                    `json:"size"`
 	From           int                    `json:"from,omitempty"`
@@ -195,35 +196,32 @@ func (q leafQuery) handleMarshalQueryString(queryType string) ([]byte, error) {
 }
 
 func constructTermsAggregations(aggs []Aggregation) map[string]interface{} {
-	if len(aggs) == 0 {
-		return nil
-	}
+	aggregationResult := map[string]interface{}{}
 
-	agg := aggs[0]
-	aggType := map[string]interface{}{
-		"field": agg.Field,
-	}
-	if agg.Size != nil {
-		aggType["size"] = *agg.Size
-	}
-	if agg.Order != nil {
-		aggType["order"] = *agg.Order
-	}
-
-	aggTypeKey, _ := agg.Type.String()
-	aggregationMap := map[string]interface{}{
-		agg.Name: map[string]interface{}{
+	for _, agg := range aggs {
+		aggTypeKey, _ := agg.Type.String()
+		aggType := map[string]interface{}{
+			"field": agg.Field,
+		}
+		if agg.Size != nil {
+			aggType["size"] = *agg.Size
+		}
+		if agg.Order != nil {
+			aggType["order"] = *agg.Order
+		}
+		aggregationResult[agg.Name] = map[string]interface{}{
 			aggTypeKey: aggType,
-		},
+		}
+		if len(agg.NestedAggregations) > 0 {
+			nestedAggregationResult := constructTermsAggregations(agg.NestedAggregations)
+			aggregationResult[agg.Name] = map[string]interface{}{
+				aggTypeKey: aggType,
+				"aggs":     nestedAggregationResult,
+			}
+		}
 	}
 
-	if len(aggs) > 1 {
-		aggTempMap := aggregationMap[agg.Name].(map[string]interface{})
-		aggTempMap["aggregations"] = constructTermsAggregations(aggs[1:])
-	}
-
-	return aggregationMap
-
+	return aggregationResult
 }
 
 func constructAggregations(query QueryDoc) map[string]interface{} {
